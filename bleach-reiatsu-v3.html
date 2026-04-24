@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>BLEACH — 死神 REIATSU SYSTEM v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;700;900&family=Share+Tech+Mono&family=Cinzel+Decorative:wght@400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:           #020305;
+  --bone:          #e8e0d0;
+  --ash:           #8a8478;
+  --hollow-orange: #ff6a00;
+  --reiatsu-cyan:  #00d4ff;
+  --reiatsu-teal:  #00ffcc;
+  --quincy-blue:   #4488ff;
+  --blood:         #cc0022;
+  --soul-gold:     #d4aa55;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background: var(--ink);
+  font-family: 'Share Tech Mono', monospace;
+  cursor: crosshair;
+  user-select: none;
+}
+
+/* ── VIDEO / CANVAS LAYERS ── */
+#camera-video {
+  position:fixed; inset:0;
+  width:100vw; height:100vh;
+  object-fit:cover;
+  transform:scaleX(-1);
+  z-index:1;
+  filter: saturate(0.22) contrast(1.35) brightness(0.6);
+  transition: filter 0.7s ease;
+}
+#camera-video.shikai  { filter: saturate(0.3)  contrast(1.3)  brightness(0.65); }
+#camera-video.bankai  { filter: saturate(0)    contrast(1.7)  brightness(0.45); }
+#camera-video.quincy  { filter: saturate(0.18) contrast(1.3)  brightness(0.72) hue-rotate(200deg); }
+#camera-video.hollow  { filter: saturate(0.35) contrast(1.45) brightness(0.58) sepia(0.4) hue-rotate(-20deg); }
+#camera-video.mugetsu { filter: saturate(0)    contrast(2.2)  brightness(0.18); }
+
+#three-canvas { position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:3; mix-blend-mode:screen; }
+#fx-canvas    { position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:5; mix-blend-mode:screen; }
+#ink-canvas   { position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:4; mix-blend-mode:multiply; opacity:0.7; }
+#debug-canvas { position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:6; transform:scaleX(-1); opacity:0.6; }
+
+#scanlines {
+  position:fixed; inset:0; z-index:7; pointer-events:none;
+  background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.05) 2px,rgba(0,0,0,0.05) 4px);
+}
+#vignette {
+  position:fixed; inset:0; z-index:7; pointer-events:none;
+  background: radial-gradient(ellipse at 50% 50%, transparent 38%, rgba(0,0,0,0.88) 100%);
+}
+
+/* ── UI LAYER ── */
+#ui { position:fixed; inset:0; z-index:8; pointer-events:none; }
+
+/* ── START SCREEN ── */
+#start-screen {
+  position:fixed; inset:0; z-index:200;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background: radial-gradient(ellipse at center, rgba(12,4,26,0.97), rgba(2,3,5,0.99));
+  backdrop-filter:blur(16px);
+  transition: opacity 1.4s ease;
+}
+#start-screen.hidden { opacity:0; pointer-events:none; }
+
+#start-logo {
+  font-family:'Noto Serif JP',serif; font-weight:900;
+  font-size:clamp(3rem,9vw,7rem);
+  color:var(--bone); letter-spacing:0.28em;
+  text-shadow: 0 0 60px rgba(0,212,255,0.35), 0 0 120px rgba(0,212,255,0.12), 2px 2px 0 rgba(0,0,0,0.9);
+  animation: logoBreath 3s ease-in-out infinite;
+  margin-bottom:0.1em;
+}
+@keyframes logoBreath {
+  0%,100%{ filter:brightness(1) drop-shadow(0 0 20px rgba(0,212,255,0.3)); }
+  50%    { filter:brightness(1.15) drop-shadow(0 0 40px rgba(0,212,255,0.6)); }
+}
+#start-subtitle {
+  font-size:clamp(0.5rem,1.2vw,0.75rem); letter-spacing:0.55em;
+  color:var(--ash); text-transform:uppercase; margin-bottom:2.5em;
+}
+#gesture-guide {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px; max-width:720px; margin:0 20px 2em; width:100%;
+}
+.guide-card {
+  padding:12px 14px;
+  background:rgba(20,10,40,0.5);
+  border:1px solid rgba(232,224,208,0.15);
+  border-radius:4px;
+  font-size:0.7rem; line-height:1.6;
+  transition:border-color 0.3s;
+}
+.guide-card:hover { border-color:rgba(232,224,208,0.4); }
+.guide-card .g-gesture { color:var(--bone); font-size:0.85rem; margin-bottom:2px; }
+.guide-card .g-tech    { letter-spacing:0.15em; text-transform:uppercase; }
+.guide-card .g-desc    { color:var(--ash); font-size:0.62rem; margin-top:2px; font-style:italic; }
+
+#start-btn {
+  font-family:'Noto Serif JP',serif; font-weight:700;
+  padding:14px 50px; font-size:0.9rem; letter-spacing:0.4em;
+  background:transparent; color:var(--bone); text-transform:uppercase;
+  border:1px solid rgba(232,224,208,0.4); border-radius:2px; cursor:pointer;
+  transition:all 0.35s ease; pointer-events:all;
+  box-shadow: 0 0 24px rgba(0,212,255,0.12), inset 0 0 20px rgba(0,212,255,0.05);
+}
+#start-btn:hover {
+  background:rgba(0,212,255,0.08);
+  border-color:rgba(0,212,255,0.6);
+  box-shadow:0 0 50px rgba(0,212,255,0.35), inset 0 0 30px rgba(0,212,255,0.12);
+  transform:scale(1.03);
+}
+#start-footer {
+  margin-top:1.6em; font-size:0.6rem; letter-spacing:0.22em;
+  color:rgba(138,132,120,0.4); text-transform:uppercase;
+}
+
+/* ── TITLE STAMP ── */
+#kanji-stamp {
+  position:absolute; top:18px; left:50%; transform:translateX(-50%); text-align:center;
+}
+#kanji-stamp h1 {
+  font-family:'Noto Serif JP',serif; font-weight:900;
+  font-size:clamp(1.8rem,4.5vw,3.6rem);
+  color:var(--bone); letter-spacing:0.3em; line-height:1;
+  text-shadow:0 0 40px rgba(0,212,255,0.22), 2px 2px 0 rgba(0,0,0,0.9);
+}
+#kanji-stamp .sub {
+  font-size:clamp(0.38rem,0.8vw,0.55rem);
+  color:var(--ash); letter-spacing:0.5em; text-transform:uppercase; margin-top:4px;
+}
+
+/* ── TECHNIQUE SIDE PANEL ── */
+#technique-panel {
+  position:absolute; left:18px; top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:6px;
+}
+#technique-jp {
+  font-family:'Noto Serif JP',serif; font-weight:700;
+  font-size:clamp(1.2rem,2.5vw,2rem);
+  color:var(--bone); writing-mode:vertical-rl;
+  letter-spacing:0.14em; opacity:0;
+  transition:color 0.4s, text-shadow 0.4s, opacity 0.4s;
+}
+#technique-en {
+  font-size:0.5rem; letter-spacing:0.28em; color:var(--ash);
+  text-transform:uppercase; writing-mode:vertical-rl;
+  opacity:0; transition:opacity 0.4s;
+}
+
+/* ── STATS PANEL ── */
+#stats-panel {
+  position:absolute; right:18px; top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:8px;
+}
+.stat-row { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+.stat-label { font-size:0.44rem; letter-spacing:0.26em; color:var(--ash); text-transform:uppercase; }
+.stat-bar-wrap { width:60px; height:2px; background:rgba(255,255,255,0.06); border-radius:1px; overflow:hidden; }
+.stat-bar-fill { height:100%; width:0%; border-radius:1px; transition:width 0.4s ease, box-shadow 0.4s; }
+
+/* ── HUD INFO ── */
+#hud-info {
+  position:absolute; top:18px; left:18px;
+  font-size:0.4rem; letter-spacing:0.2em;
+  color:rgba(138,132,120,0.3); text-transform:uppercase; line-height:1.8;
+}
+
+/* ── CHARGE BAR ── */
+#charge-bar-wrap {
+  position:absolute; bottom:88px; left:50%; transform:translateX(-50%);
+  width:min(220px,55vw); height:2px;
+  background:rgba(255,255,255,0.06); border-radius:1px;
+  overflow:hidden; opacity:0; transition:opacity 0.25s;
+}
+#charge-bar-fill {
+  height:100%; width:0%;
+  background:var(--bone); box-shadow:0 0 6px var(--bone);
+  transition:background 0.2s, box-shadow 0.2s;
+}
+
+/* ── AUDIO VIZ ── */
+#audio-vis {
+  position:absolute; bottom:44px; left:50%; transform:translateX(-50%);
+  width:min(380px,82vw); height:30px;
+  opacity:0; transition:opacity 0.5s;
+}
+#audio-vis canvas { width:100%; height:100%; }
+
+/* ── BOTTOM BAR ── */
+#bottom-bar {
+  position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+  text-align:center; pointer-events:none;
+}
+#gesture-hint {
+  font-size:0.46rem; letter-spacing:0.24em;
+  color:rgba(138,132,120,0.38); text-transform:uppercase;
+}
+
+/* ── ZANPAKUTO FLASH ── */
+#zanpakuto-name {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  font-family:'Noto Serif JP',serif; font-weight:900;
+  font-size:clamp(2.8rem,9vw,7rem);
+  color:var(--bone); letter-spacing:0.2em;
+  text-shadow:0 0 60px rgba(255,255,255,0.3);
+  opacity:0; pointer-events:none; text-align:center;
+  transition:opacity 0.3s;
+}
+
+/* ── EPISODE BANNER ── */
+#episode-banner {
+  position:absolute; bottom:52px; left:0; right:0;
+  text-align:center; opacity:0; pointer-events:none;
+  transition:opacity 0.5s;
+}
+#episode-banner .ep-line {
+  display:block; font-family:'Noto Serif JP',serif;
+  font-size:clamp(1rem,3.2vw,2.4rem); font-weight:300;
+  color:var(--bone); letter-spacing:0.44em;
+  text-shadow:0 0 28px rgba(232,224,208,0.5);
+}
+#episode-banner .ep-sub {
+  display:block; font-size:0.48rem; letter-spacing:0.5em;
+  color:var(--ash); margin-top:6px; text-transform:uppercase;
+}
+
+/* ── OVERLAYS ── */
+#hollow-overlay {
+  position:absolute; inset:0;
+  background:radial-gradient(ellipse at 50% 38%, rgba(255,106,0,0.1) 0%, transparent 64%);
+  opacity:0; pointer-events:none; transition:opacity 0.6s; mix-blend-mode:overlay;
+}
+#mugetsu-overlay {
+  position:absolute; inset:0;
+  background:linear-gradient(180deg, #000 0%, #04000a 45%, #000 100%);
+  opacity:0; pointer-events:none; transition:opacity 0.9s;
+}
+
+/* ── SPELL LOG (from Elder Magic) ── */
+#spell-log {
+  position:absolute; bottom:110px; left:18px;
+  width:240px; pointer-events:none;
+}
+.log-entry {
+  font-size:0.58rem; letter-spacing:0.12em;
+  font-style:italic; color:var(--bone);
+  opacity:0; animation:logFade 3.5s ease forwards;
+  text-shadow:0 0 8px currentColor;
+  margin-bottom:3px;
+}
+@keyframes logFade {
+  0%  { opacity:0; transform:translateY(5px); }
+  12% { opacity:0.9; transform:translateY(0); }
+  70% { opacity:0.9; }
+  100%{ opacity:0; }
+}
+
+/* ── COMBO METER ── */
+#combo-display {
+  position:absolute; top:18px; right:18px;
+  text-align:right; pointer-events:none;
+  opacity:0; transition:opacity 0.3s;
+}
+#combo-count {
+  font-family:'Noto Serif JP',serif; font-weight:900;
+  font-size:clamp(1.5rem,4vw,3.2rem);
+  color:var(--soul-gold);
+  text-shadow:0 0 20px rgba(212,170,85,0.7);
+  animation:comboPulse 0.3s ease;
+}
+#combo-label {
+  font-size:0.45rem; letter-spacing:0.3em; color:var(--ash); text-transform:uppercase;
+}
+@keyframes comboPulse { 0%{transform:scale(1.4)} 100%{transform:scale(1)} }
+
+/* ── REIATSU METER (top center) ── */
+#reiatsu-meter {
+  position:absolute; top:18px; left:50%; transform:translateX(-50%);
+  margin-top:68px; /* below title */
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  pointer-events:none;
+}
+#reiatsu-bar-wrap {
+  width:min(160px,40vw); height:3px;
+  background:rgba(0,212,255,0.1); border-radius:2px; overflow:hidden;
+}
+#reiatsu-bar-fill {
+  height:100%; width:0%;
+  background:linear-gradient(90deg, var(--reiatsu-cyan), var(--reiatsu-teal));
+  box-shadow:0 0 8px var(--reiatsu-cyan);
+  transition:width 0.12s linear;
+}
+#reiatsu-label {
+  font-size:0.38rem; letter-spacing:0.3em; color:rgba(0,212,255,0.45); text-transform:uppercase;
+}
+
+@media (max-width:600px){
+  #hud-info { font-size:0.36rem; }
+  .stat-bar-wrap { width:44px; }
+  #gesture-hint { font-size:0.4rem; }
+}
+</style>
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<video id="camera-video" autoplay playsinline muted></video>
+<canvas id="three-canvas"></canvas>
+<canvas id="fx-canvas"></canvas>
+<canvas id="ink-canvas"></canvas>
+<canvas id="debug-canvas"></canvas>
+<div id="scanlines"></div>
+<div id="vignette"></div>
+
+<!-- START SCREEN -->
+<div id="start-screen">
+  <div id="start-logo">死神</div>
+  <div id="start-subtitle">BLEACH — Soul Reaper Reiatsu System v3</div>
+  <div id="gesture-guide">
+    <div class="guide-card">
+      <div class="g-gesture">🖐 Left Open</div>
+      <div class="g-tech" style="color:#e8e0d0;">始解 Shikai</div>
+      <div class="g-desc">Initial release — bone spiral</div>
+    </div>
+    <div class="guide-card">
+      <div class="g-gesture">🖐 Right Open</div>
+      <div class="g-tech" style="color:#cccccc;">卍解 Bankai</div>
+      <div class="g-desc">Final release — dark spiral</div>
+    </div>
+    <div class="guide-card">
+      <div class="g-gesture">🖐🖐 Both Open</div>
+      <div class="g-tech" style="color:#4488ff;">滅却師 Quincy</div>
+      <div class="g-desc">Letzt Stil — cross formation</div>
+    </div>
+    <div class="guide-card">
+      <div class="g-gesture">✊✊ Both Fists</div>
+      <div class="g-tech" style="color:#ff6a00;">虚化 Hollow</div>
+      <div class="g-desc">Hollowification — mask resonance</div>
+    </div>
+    <div class="guide-card">
+      <div class="g-gesture">🤏 Pinch</div>
+      <div class="g-tech" style="color:#d4c8aa;">月牙天衝 Getsuga</div>
+      <div class="g-desc">Pinch & hold to aim — release to fire</div>
+    </div>
+    <div class="guide-card">
+      <div class="g-gesture">✌✌ Both Peace</div>
+      <div class="g-tech" style="color:#888888;">無月 Mugetsu</div>
+      <div class="g-desc">Hold both peace signs to charge</div>
+    </div>
+    <div class="guide-card">
+      <div class="g-gesture">🖐🖐 Hands Close</div>
+      <div class="g-tech" style="color:#ffffff;">融合 Fusion</div>
+      <div class="g-desc">Shikai + Bankai collision</div>
+    </div>
+  </div>
+  <button id="start-btn">— 卍解 · BEGIN RITUAL —</button>
+  <div id="start-footer">Requires camera &amp; audio · Chrome recommended</div>
+</div>
+
+<!-- UI -->
+<div id="ui">
+  <div id="kanji-stamp">
+    <h1>死神</h1>
+    <div class="sub">BLEACH — SOUL REAPER SYSTEM v3</div>
+  </div>
+
+  <!-- Reiatsu meter below title -->
+  <div id="reiatsu-meter">
+    <div id="reiatsu-bar-wrap"><div id="reiatsu-bar-fill"></div></div>
+    <div id="reiatsu-label">REIATSU</div>
+  </div>
+
+  <div id="technique-panel">
+    <div id="technique-jp">待機中</div>
+    <div id="technique-en">STANDBY</div>
+  </div>
+
+  <div id="stats-panel">
+    <div class="stat-row">
+      <div class="stat-label">REIATSU</div>
+      <div class="stat-bar-wrap"><div class="stat-bar-fill" id="bar-reiatsu" style="background:var(--reiatsu-cyan);box-shadow:0 0 4px var(--reiatsu-cyan)"></div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-label">BANKAI</div>
+      <div class="stat-bar-wrap"><div class="stat-bar-fill" id="bar-bankai" style="background:var(--bone);box-shadow:0 0 4px var(--bone)"></div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-label">HOLLOW</div>
+      <div class="stat-bar-wrap"><div class="stat-bar-fill" id="bar-hollow" style="background:var(--hollow-orange);box-shadow:0 0 4px var(--hollow-orange)"></div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-label">QUINCY</div>
+      <div class="stat-bar-wrap"><div class="stat-bar-fill" id="bar-quincy" style="background:var(--quincy-blue);box-shadow:0 0 4px var(--quincy-blue)"></div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-label">COMBO</div>
+      <div class="stat-bar-wrap"><div class="stat-bar-fill" id="bar-combo" style="background:var(--soul-gold);box-shadow:0 0 4px var(--soul-gold)"></div></div>
+    </div>
+  </div>
+
+  <div id="hud-info">
+    <div id="hud-fps">FPS: --</div>
+    <div id="hud-tech">TECH: NEUTRAL</div>
+    <div id="hud-hands">HANDS: 0</div>
+    <div id="hud-gesture">GEST: --</div>
+  </div>
+
+  <div id="combo-display">
+    <div id="combo-count">0</div>
+    <div id="combo-label">COMBO</div>
+  </div>
+
+  <div id="audio-vis"><canvas id="audio-vis-canvas"></canvas></div>
+
+  <div id="zanpakuto-name">斬月</div>
+  <div id="hollow-overlay"></div>
+  <div id="mugetsu-overlay"></div>
+
+  <div id="episode-banner">
+    <span class="ep-line" id="ep-line-text">斬月</span>
+    <span class="ep-sub"  id="ep-sub-text">ZANPAKUTO AWAKENED</span>
+  </div>
+
+  <div id="charge-bar-wrap"><div id="charge-bar-fill"></div></div>
+
+  <div id="spell-log"></div>
+
+  <div id="bottom-bar">
+    <div id="gesture-hint">L-OPEN: 始解 · R-OPEN: 卍解 · BOTH-OPEN: 滅却師 · FISTS: 虚化 · PINCH: 月牙 · PEACE×2: 無月</div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }     from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass }     from 'three/addons/postprocessing/ShaderPass.js';
+
+/* ═══════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════ */
+const CFG = {
+  N: 10000,
+  SHIKAI:  { coreRatio:0.14,coreRadius:6, coreColor:{r:2.4,g:2.0,b:1.4}, coreSize:2.2, arms:4, spiralSpeed:12, spiralRadius:28, spiralStartRadius:3, spiralDepth:10, armColor:{r:0.88,g:0.84,b:0.68}, armSize:0.9, rotationSpeed:0.055, bloom:2.2, shake:0.12 },
+  BANKAI:  { coreRatio:0.10,coreRadius:9, coreColor:{r:0.04,g:0.04,b:0.04},coreSize:3.0, arms:6, spiralSpeed:18, spiralRadius:45, spiralStartRadius:4, spiralDepth:15, armColor:{r:0.02,g:0.02,b:0.03}, armSize:1.2, edgeColor:{r:2.0,g:1.8,b:1.4}, rotationSpeed:-0.09, bloom:3.5, shake:0.32 },
+  QUINCY:  { coreRatio:0.30,coreRadius:8, coreColor:{r:0.28,g:0.55,b:3.0}, coreSize:2.0, ringRadius:20, ringThickness:2, armColor:{r:0.18,g:0.48,b:2.4}, armSize:1.0, crossSize:35, crossThickness:6, rotationSpeed:0.04, bloom:2.8, shake:0.18 },
+  HOLLOW:  { coreRatio:0.20,coreRadius:7, coreColor:{r:2.5,g:0.38,b:0.0}, coreSize:2.5, arms:5, spiralSpeed:20, spiralRadius:35, spiralStartRadius:2, spiralDepth:12, armColor:{r:1.2,g:0.28,b:0.0}, armSize:1.1, rotationSpeed:-0.11, bloom:3.0, shake:0.45 },
+  GETSUGA: { speed:20, duration:85, bloom:5.2, shake:1.2, chargeFrames:22 },
+  MUGETSU: { darkDuration:180, warpDuration:55, warpSpeed:14, bloom:4.2, shake:2.0, warpRange:250 },
+  FUSION:  { orbitSpeed:0.07, orbitStartRadius:18, spiralShrinkRate:0.975, spiralSpeedUp:1.025, collisionRadius:1.5, explosionDuration:55, explosionScatter:70, explosionBloom:7.0, explosionShake:2.0, orbitBloom:4.0, orbitShake:0.4 },
+  BLOOM:   { defaultStrength:1.5, radius:0.5, threshold:0.75 },
+  DETECT:  {
+    pinchDist:     0.05,   // normalised thumb-index distance threshold
+    pinchHold:     18,     // frames held before firing Getsuga
+    peaceHold:     45,     // frames both peace → Mugetsu
+    openThresh:    3,      // fingers extended to count as "open" (out of 4 non-thumb)
+    fistThresh:    1,      // max fingers extended for fist
+    minDetect:     0.70,
+    minTrack:      0.58,
+    fusionPixDist: 120,
+    getsugaCooldown: 30,
+  },
+  ANIM: { lerpPos:0.42, lerpMorph:0.09, fadeIn:0.07, fadeOut:0.05, shakeMultiplier:14, neutralRot:0.004 },
+  CAM:  { w:1280, h:720, z:60, fov:70 },
+  COMBO:{ decayFrames:180 },
+};
+
+/* ═══════════════════════════════════════════
+   EVENT BUS
+═══════════════════════════════════════════ */
+const Bus = {
+  _l:{},
+  on(ev,fn){ (this._l[ev]=this._l[ev]||[]).push(fn); },
+  emit(ev,d){ (this._l[ev]||[]).forEach(fn=>fn(d)); },
+};
+
+/* ═══════════════════════════════════════════
+   AUDIO ENGINE
+═══════════════════════════════════════════ */
+let audioCtx, analyser, masterGain, audioBuffers={};
+let audioReady=false, reiatsuHum=null, humStopTO=null;
+
+async function initAudio() {
+  if (audioReady) return;
+  try {
+    audioCtx   = new (window.AudioContext||window.webkitAudioContext)();
+    analyser   = audioCtx.createAnalyser(); analyser.fftSize=512;
+    masterGain = audioCtx.createGain(); masterGain.gain.value=1.0;
+    analyser.connect(masterGain); masterGain.connect(audioCtx.destination);
+    audioReady = true;
+    buildSounds();
+  } catch(e){ console.warn('Audio:',e); }
+}
+
+function buildSounds() {
+  if (!audioCtx) return;
+  const sr = audioCtx.sampleRate;
+  const mkBuf = (dur) => audioCtx.createBuffer(1,Math.max(1,Math.floor(dur*sr)),sr);
+
+  function synthTone(freq,dur,type='sine',gain=0.4,atk=0.02,rel=0.3) {
+    const buf=mkBuf(dur), d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++){
+      const t=i/sr;
+      let env=1;
+      if(t<atk) env=t/atk; else if(t>dur-rel) env=Math.max(0,(dur-t)/rel);
+      let s=Math.sin(2*Math.PI*freq*t);
+      if(type==='sawtooth') s=2*(t*freq-Math.floor(t*freq+0.5));
+      if(type==='square') s=Math.sign(Math.sin(2*Math.PI*freq*t));
+      d[i]=s*env*gain;
+    }
+    return buf;
+  }
+  function synthNoise(dur,gain=0.15,atk=0.01,rel=0.2) {
+    const buf=mkBuf(dur), d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++){
+      const t=i/sr;
+      let env=1;
+      if(t<atk) env=t/atk; else if(t>dur-rel) env=Math.max(0,(dur-t)/rel);
+      d[i]=(Math.random()*2-1)*env*gain;
+    }
+    return buf;
+  }
+  function synthChime(freqs,dur,gain=0.28) {
+    const buf=mkBuf(dur), d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++){
+      const t=i/sr, env=Math.exp(-t*3.2);
+      let s=0; for(const f of freqs) s+=Math.sin(2*Math.PI*f*t);
+      d[i]=(s/freqs.length)*env*gain;
+    }
+    return buf;
+  }
+  function synthImpact(dur=0.5,gain=0.5) {
+    const buf=mkBuf(dur), d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++){
+      const t=i/sr, env=Math.exp(-t*10);
+      const noise=(Math.random()*2-1)*0.6;
+      const sub=Math.sin(2*Math.PI*55*t)*Math.exp(-t*20);
+      d[i]=(noise+sub)*env*gain;
+    }
+    return buf;
+  }
+  function synthGetsugaCharge(dur=0.6,gain=0.3) {
+    // Rising whine — pitch sweeps up as pinch is held
+    const buf=mkBuf(dur), d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++){
+      const t=i/sr, env=t/dur;
+      const freq=200+t/dur*600;
+      d[i]=Math.sin(2*Math.PI*freq*t)*env*gain;
+    }
+    return buf;
+  }
+
+  audioBuffers = {
+    shikai:        synthChime([523,659,784,1047],2.0,0.24),
+    bankai:        synthTone(110,1.5,'sawtooth',0.3,0.05,0.8),
+    quincy:        synthChime([880,1108,1318,1760],1.8,0.20),
+    hollow:        synthNoise(1.2,0.25,0.02,0.5),
+    getsuga:       synthImpact(0.8,0.65),
+    getsugaCharge: synthGetsugaCharge(0.6,0.28),
+    fusion:        synthImpact(1.2,0.72),
+    mugetsu:       synthTone(60,3.0,'sawtooth',0.35,0.1,1.5),
+    combo:         synthChime([1047,1319],0.3,0.18),
+  };
+}
+
+function playSound(name,vol=1.0) {
+  if(!audioReady||!audioBuffers[name]) return;
+  try {
+    const src=audioCtx.createBufferSource();
+    src.buffer=audioBuffers[name];
+    const g=audioCtx.createGain(); g.gain.value=vol;
+    src.connect(g); g.connect(analyser); src.start(0);
+  } catch(e){}
+}
+
+function startHum(freq,vol) {
+  if(!audioReady) return;
+  stopHum();
+  try {
+    const osc=audioCtx.createOscillator(), g=audioCtx.createGain();
+    osc.type='sine'; osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
+    g.gain.setValueAtTime(0,audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(vol,audioCtx.currentTime+0.35);
+    osc.connect(g); g.connect(analyser); osc.start();
+    reiatsuHum={osc,g};
+  } catch(e){}
+}
+function stopHum() {
+  if(!reiatsuHum) return;
+  const h=reiatsuHum; reiatsuHum=null;
+  if(humStopTO){clearTimeout(humStopTO);humStopTO=null;}
+  try {
+    h.g.gain.cancelScheduledValues(audioCtx.currentTime);
+    h.g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.35);
+    humStopTO=setTimeout(()=>{try{h.osc.stop();h.osc.disconnect();h.g.disconnect();}catch(e){}},400);
+  } catch(e){}
+}
+function getFreqData() {
+  if(!analyser) return new Uint8Array(256);
+  const d=new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(d); return d;
+}
+
+/* ═══════════════════════════════════════════
+   THREE.JS SETUP
+═══════════════════════════════════════════ */
+const threeCanvas=document.getElementById('three-canvas');
+threeCanvas.width=window.innerWidth; threeCanvas.height=window.innerHeight;
+
+const scene=new THREE.Scene();
+const cam3=new THREE.PerspectiveCamera(CFG.CAM.fov,window.innerWidth/window.innerHeight,0.1,2000);
+cam3.position.z=CFG.CAM.z;
+
+const renderer=new THREE.WebGLRenderer({canvas:threeCanvas,antialias:true,alpha:false});
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setClearColor(0x000000,1);
+
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,cam3));
+const bloomPass=new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth,window.innerHeight),
+  CFG.BLOOM.defaultStrength,CFG.BLOOM.radius,CFG.BLOOM.threshold
+);
+composer.addPass(bloomPass);
+
+// Chromatic aberration with film grain
+const ChromaShader={
+  uniforms:{tDiffuse:{value:null},strength:{value:0.0},uTime:{value:0}},
+  vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`
+    uniform sampler2D tDiffuse;
+    uniform float strength;
+    uniform float uTime;
+    varying vec2 vUv;
+    void main(){
+      vec2 dir=vUv-0.5;
+      float dist=length(dir);
+      vec2 offset=normalize(dir)*dist*strength*0.018;
+      float r=texture2D(tDiffuse,vUv+offset).r;
+      float g=texture2D(tDiffuse,vUv).g;
+      float b=texture2D(tDiffuse,vUv-offset).b;
+      vec3 col=vec3(r,g,b);
+      float n=fract(sin(dot(vUv*uTime,vec2(12.9898,78.233)))*43758.5453);
+      col+=(n-0.5)*0.016;
+      gl_FragColor=vec4(col,1.0);
+    }`,
+};
+const chromaPass=new ShaderPass(ChromaShader);
+composer.addPass(chromaPass);
+
+const fxCanvas =document.getElementById('fx-canvas');
+const fxCtx   =fxCanvas.getContext('2d');
+const inkCanvas=document.getElementById('ink-canvas');
+const inkCtx  =inkCanvas.getContext('2d');
+const dbgCanvas=document.getElementById('debug-canvas');
+const dbgCtx  =dbgCanvas.getContext('2d');
+const audioVisC=document.getElementById('audio-vis-canvas');
+const audioVisX=audioVisC.getContext('2d');
+
+function resizeCanvases(){
+  [fxCanvas,inkCanvas,dbgCanvas].forEach(c=>{c.width=window.innerWidth;c.height=window.innerHeight;});
+  audioVisC.width=audioVisC.offsetWidth||360; audioVisC.height=audioVisC.offsetHeight||30;
+}
+resizeCanvases();
+
+// Screen → world
+function s2w(sx,sy){
+  const fov=cam3.fov*Math.PI/180, halfH=cam3.position.z*Math.tan(fov/2), halfW=halfH*cam3.aspect;
+  return new THREE.Vector3(((sx/window.innerWidth)-0.5)*2*halfW,-((sy/window.innerHeight)-0.5)*2*halfH,0);
+}
+
+/* ═══════════════════════════════════════════
+   PARTICLE FACTORY
+═══════════════════════════════════════════ */
+const N=CFG.N;
+
+function mkSys(){
+  const geo=new THREE.BufferGeometry();
+  const pos=new Float32Array(N*3), col=new Float32Array(N*3), siz=new Float32Array(N);
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('color',   new THREE.BufferAttribute(col,3));
+  geo.setAttribute('size',    new THREE.BufferAttribute(siz,1));
+  const pts=new THREE.Points(geo,new THREE.PointsMaterial({
+    size:0.28,vertexColors:true,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,
+  }));
+  pts.visible=false; scene.add(pts);
+  return {
+    pts,geo,pos,col,siz,
+    tPos:new Float32Array(N*3),tCol:new Float32Array(N*3),tSiz:new Float32Array(N),
+    worldPos:new THREE.Vector3(),targetWorldPos:new THREE.Vector3(),
+    velocity:new THREE.Vector3(),
+    shape:'',visible:false,opacity:0,
+  };
+}
+
+const sysL=mkSys(), sysR=mkSys(), sysM=mkSys();
+
+/* ═══════════════════════════════════════════
+   SHAPE GENERATORS
+═══════════════════════════════════════════ */
+function genShikai(i){
+  const C=CFG.SHIKAI;
+  if(i<N*C.coreRatio){const r=Math.random()*C.coreRadius,th=Math.random()*6.28,ph=Math.acos(2*Math.random()-1);return{x:r*Math.sin(ph)*Math.cos(th),y:r*Math.sin(ph)*Math.sin(th),z:r*Math.cos(ph),r:C.coreColor.r,g:C.coreColor.g,b:C.coreColor.b,s:C.coreSize};}
+  const t=i/N,arm=i%C.arms,angle=t*C.spiralSpeed+arm*(Math.PI*2/C.arms),radius=C.spiralStartRadius+t*C.spiralRadius,fade=0.5+Math.random()*0.5;
+  return{x:radius*Math.cos(angle),y:radius*Math.sin(angle),z:(Math.random()-0.5)*(C.spiralDepth*t),r:C.armColor.r*fade,g:C.armColor.g*fade,b:C.armColor.b*fade,s:C.armSize};
+}
+function genBankai(i){
+  const C=CFG.BANKAI;
+  if(i<N*C.coreRatio){const r=Math.random()*C.coreRadius,th=Math.random()*6.28,ph=Math.acos(2*Math.random()-1),ef=r/C.coreRadius;return{x:r*Math.sin(ph)*Math.cos(th),y:r*Math.sin(ph)*Math.sin(th),z:r*Math.cos(ph),r:C.edgeColor.r*ef,g:C.edgeColor.g*ef,b:C.edgeColor.b*ef,s:C.coreSize};}
+  const t=i/N,arm=i%C.arms,angle=-(t*C.spiralSpeed+arm*(Math.PI*2/C.arms)),radius=C.spiralStartRadius+t*C.spiralRadius,eg=Math.random()>0.82;
+  return{x:radius*Math.cos(angle),y:radius*Math.sin(angle),z:(Math.random()-0.5)*(C.spiralDepth*t),r:eg?C.edgeColor.r:C.armColor.r,g:eg?C.edgeColor.g:C.armColor.g,b:eg?C.edgeColor.b*1.2:C.armColor.b,s:C.armSize};
+}
+function genQuincy(i){
+  const C=CFG.QUINCY,t=i/N;
+  if(t<0.2){const x=(Math.random()-0.5)*C.crossSize,y=(Math.random()-0.5)*C.crossThickness;return{x,y,z:(Math.random()-0.5)*2,r:C.coreColor.r,g:C.coreColor.g,b:C.coreColor.b,s:C.coreSize};}
+  if(t<0.4){const x=(Math.random()-0.5)*C.crossThickness,y=(Math.random()-0.5)*C.crossSize;return{x,y,z:(Math.random()-0.5)*2,r:C.coreColor.r,g:C.coreColor.g,b:C.coreColor.b,s:C.coreSize};}
+  const angle=t*Math.PI*2,r=C.ringRadius+(Math.random()-0.5)*C.ringThickness,br=0.5+Math.random()*0.5;
+  return{x:r*Math.cos(angle),y:r*Math.sin(angle),z:(Math.random()-0.5)*4,r:C.armColor.r*br,g:C.armColor.g*br,b:C.armColor.b*br,s:C.armSize};
+}
+function genHollow(i){
+  const C=CFG.HOLLOW;
+  if(i<N*C.coreRatio){const r=Math.random()*C.coreRadius,th=Math.random()*6.28,ph=Math.acos(2*Math.random()-1);return{x:r*Math.sin(ph)*Math.cos(th),y:r*Math.sin(ph)*Math.sin(th),z:r*Math.cos(ph),r:C.coreColor.r,g:C.coreColor.g,b:C.coreColor.b,s:C.coreSize};}
+  const t=i/N,arm=i%C.arms,angle=t*C.spiralSpeed+arm*(Math.PI*2/C.arms),radius=C.spiralStartRadius+t*C.spiralRadius,fl=0.55+Math.random()*0.6;
+  return{x:radius*Math.cos(angle),y:radius*Math.sin(angle),z:(Math.random()-0.5)*(C.spiralDepth*t),r:C.armColor.r*fl,g:C.armColor.g*fl,b:C.armColor.b,s:C.armSize};
+}
+function genGetsuga(i){
+  const t=i/N,angle=-Math.PI*0.6+t*Math.PI*1.2,radius=14+(Math.random()-0.5)*8,eg=radius>19.5||radius<8.5;
+  return{x:radius*Math.cos(angle),y:radius*Math.sin(angle),z:(Math.random()-0.5)*6,r:eg?2.0:0.03,g:eg?1.8:0.03,b:eg?1.2:0.05,s:eg?2.5:1.0};
+}
+function genMugetsuWarp(i){
+  const R=CFG.MUGETSU.warpRange,y=(Math.random()-0.5)*80,z=(Math.random()-0.5)*80,x=(Math.random()-0.5)*R*2,dk=Math.random()>0.3;
+  return{x,y,z,r:dk?0.01:1.2,g:dk?0.01:1.0,b:dk?0.02:0.7,s:0.3+Math.random()*2.5};
+}
+function genMugetsu(i){
+  const t=i/N;
+  if(t<0.3){const r=Math.random()*20,th=Math.random()*6.28,ph=Math.acos(2*Math.random()-1);return{x:r*Math.sin(ph)*Math.cos(th),y:r*Math.sin(ph)*Math.sin(th),z:r*Math.cos(ph),r:0.01,g:0.01,b:0.02,s:1.0};}
+  const arms=8,arm=i%arms,angle=t*25+arm*(Math.PI*2/arms),radius=5+t*80,eg=Math.random()>0.88;
+  return{x:radius*Math.cos(angle),y:radius*Math.sin(angle),z:(Math.random()-0.5)*(20*t),r:eg?1.5:0.01,g:eg?1.2:0.01,b:eg?0.9:0.02,s:eg?2.0:0.7};
+}
+
+function setShape(sys,fn){
+  for(let i=0;i<N;i++){const p=fn(i);sys.tPos[i*3]=p.x;sys.tPos[i*3+1]=p.y;sys.tPos[i*3+2]=p.z;sys.tCol[i*3]=p.r;sys.tCol[i*3+1]=p.g;sys.tCol[i*3+2]=p.b;sys.tSiz[i]=p.s;}
+}
+
+/* ═══════════════════════════════════════════
+   UI REFS & TECH DATA
+═══════════════════════════════════════════ */
+const techJP   =document.getElementById('technique-jp');
+const techEN   =document.getElementById('technique-en');
+const zanEl    =document.getElementById('zanpakuto-name');
+const epBanner =document.getElementById('episode-banner');
+const epLine   =document.getElementById('ep-line-text');
+const epSub    =document.getElementById('ep-sub-text');
+const hollowOv =document.getElementById('hollow-overlay');
+const mugetsuOv=document.getElementById('mugetsu-overlay');
+const audioVisEl=document.getElementById('audio-vis');
+const vidEl    =document.getElementById('camera-video');
+const hudFPS   =document.getElementById('hud-fps');
+const hudTech  =document.getElementById('hud-tech');
+const hudHands =document.getElementById('hud-hands');
+const hudGesture=document.getElementById('hud-gesture');
+const chargeFill=document.getElementById('charge-bar-fill');
+const chargeWrap=document.getElementById('charge-bar-wrap');
+const bars     ={reiatsu:document.getElementById('bar-reiatsu'),bankai:document.getElementById('bar-bankai'),hollow:document.getElementById('bar-hollow'),quincy:document.getElementById('bar-quincy'),combo:document.getElementById('bar-combo')};
+const reiatsuFill=document.getElementById('reiatsu-bar-fill');
+const comboDsp =document.getElementById('combo-display');
+const comboCount=document.getElementById('combo-count');
+const spellLog =document.getElementById('spell-log');
+
+const TECH_DATA={
+  neutral:{ jp:'待機中',  en:'STANDBY',              color:'#8a8478', bars:{reiatsu:0,  bankai:0,  hollow:0,  quincy:0 }, hum:0,   chroma:0,   vidClass:''       },
+  shikai: { jp:'始解',    en:'INITIAL RELEASE',      color:'#e8e0d0', bars:{reiatsu:80, bankai:10, hollow:5,  quincy:5 }, hum:440, chroma:0.3, vidClass:'shikai'  },
+  bankai: { jp:'卍解',    en:'FINAL RELEASE',        color:'#cccccc', bars:{reiatsu:100,bankai:95, hollow:15, quincy:0 }, hum:110, chroma:0.5, vidClass:'bankai'  },
+  quincy: { jp:'滅却師',  en:'QUINCY LETZT STIL',    color:'#4488ff', bars:{reiatsu:70, bankai:0,  hollow:0,  quincy:100},hum:880, chroma:0.8, vidClass:'quincy'  },
+  hollow: { jp:'虚化',    en:'HOLLOWIFICATION',      color:'#ff6a00', bars:{reiatsu:100,bankai:60, hollow:100,quincy:0 }, hum:55,  chroma:0.4, vidClass:'hollow'  },
+  getsuga:{ jp:'月牙天衝',en:'GETSUGA TENSHOU',      color:'#d4c8aa', bars:{reiatsu:100,bankai:85, hollow:40, quincy:0 }, hum:0,   chroma:0.9, vidClass:''        },
+  fusing: { jp:'解放',    en:'RELEASING REIATSU...', color:'#ffffff', bars:{reiatsu:100,bankai:100,hollow:70, quincy:0 }, hum:220, chroma:0.6, vidClass:''        },
+  mugetsu:{ jp:'無月',    en:'FINAL GETSUGA TENSHOU',color:'#888888', bars:{reiatsu:100,bankai:100,hollow:100,quincy:0 }, hum:60,  chroma:1.5, vidClass:'mugetsu' },
+  charging:{ jp:'溜め',  en:'CHARGING...',           color:'#d4aa55', bars:{reiatsu:50, bankai:20, hollow:10, quincy:0 }, hum:330, chroma:0.2, vidClass:''        },
+};
+
+function setTech(name){
+  const d=TECH_DATA[name]||TECH_DATA.neutral;
+  techJP.textContent=d.jp; techEN.textContent=d.en;
+  techJP.style.color=d.color;
+  techJP.style.textShadow=`0 0 20px ${d.color}99`;
+  techEN.style.color=d.color+'77';
+  const vis=name!=='neutral';
+  techJP.style.opacity=vis?'1':'0'; techEN.style.opacity=vis?'0.7':'0';
+  for(const[k,v]of Object.entries(d.bars)) if(bars[k]) bars[k].style.width=v+'%';
+  hollowOv.style.opacity =name==='hollow' ?'1':'0';
+  mugetsuOv.style.opacity=name==='mugetsu'?'0.88':'0';
+  vidEl.className=d.vidClass||'';
+  chromaPass.uniforms.strength.value=d.chroma;
+  audioVisEl.style.opacity=name!=='neutral'?'1':'0';
+  if(d.hum>0) startHum(d.hum,name==='mugetsu'?0.09:0.045);
+  else stopHum();
+  hudTech.textContent='TECH: '+name.toUpperCase();
+}
+
+function showBanner(line,sub,dur=2200){
+  epLine.textContent=line; epSub.textContent=sub;
+  epBanner.style.opacity='1';
+  clearTimeout(showBanner._t);
+  showBanner._t=setTimeout(()=>epBanner.style.opacity='0',dur);
+}
+function showZanpakuto(name,dur=1800){
+  zanEl.textContent=name; zanEl.style.opacity='1';
+  clearTimeout(showZanpakuto._t);
+  showZanpakuto._t=setTimeout(()=>zanEl.style.opacity='0',dur);
+}
+function logSpell(text,color='#e8e0d0'){
+  const el=document.createElement('div');
+  el.className='log-entry'; el.textContent=text; el.style.color=color;
+  spellLog.prepend(el);
+  setTimeout(()=>el.remove(),3800);
+}
+
+/* ═══════════════════════════════════════════
+   COMBO SYSTEM
+═══════════════════════════════════════════ */
+let comboValue=0, comboDecay=0;
+function addCombo(n=1){
+  comboValue+=n; comboDecay=CFG.COMBO.decayFrames;
+  comboCount.textContent=comboValue;
+  comboDsp.style.opacity='1';
+  bars.combo.style.width=Math.min(comboValue*5,100)+'%';
+  comboCount.style.animation='none'; void comboCount.offsetWidth;
+  comboCount.style.animation='comboPulse 0.3s ease';
+  if(comboValue%5===0) playSound('combo',0.5);
+}
+function tickCombo(){
+  if(comboDecay>0){ comboDecay--; } else if(comboValue>0){
+    comboValue=0; comboDsp.style.opacity='0'; bars.combo.style.width='0%';
+  }
+}
+
+/* ═══════════════════════════════════════════
+   INK SPLATTER
+═══════════════════════════════════════════ */
+const inks=[];
+function spawnInk(x,y,intensity,color='#e8e0d0'){
+  const count=3+Math.floor(intensity*3);
+  for(let i=0;i<count;i++) inks.push({x:x+(Math.random()-0.5)*intensity*40,y:y+(Math.random()-0.5)*intensity*40,r:15+Math.random()*intensity*55,alpha:0.5+Math.random()*0.4,life:1.0,decay:0.002+Math.random()*0.004,color});
+}
+function updateInk(){
+  inkCtx.clearRect(0,0,inkCanvas.width,inkCanvas.height);
+  for(let i=inks.length-1;i>=0;i--){
+    const s=inks[i]; s.life-=s.decay; if(s.life<=0){inks.splice(i,1);continue;}
+    const a=s.alpha*s.life*0.22;
+    inkCtx.beginPath(); inkCtx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    inkCtx.fillStyle=s.color+Math.floor(a*255).toString(16).padStart(2,'0');
+    inkCtx.fill();
+  }
+}
+
+/* ═══════════════════════════════════════════
+   FX — AURA RINGS  (from Elder Magic: ink splash rings)
+═══════════════════════════════════════════ */
+const auraRings=[];
+function spawnAura(wx,wy,color){
+  const fov=cam3.fov*Math.PI/180,halfH=cam3.position.z*Math.tan(fov/2),halfW=halfH*cam3.aspect;
+  const sx=(wx/(2*halfW)+0.5)*window.innerWidth, sy=(-wy/(2*halfH)+0.5)*window.innerHeight;
+  auraRings.push({x:sx,y:sy,r:10,maxR:80+Math.random()*60,alpha:0.85,color});
+}
+function updateFX(){
+  fxCtx.clearRect(0,0,fxCanvas.width,fxCanvas.height);
+  for(let i=auraRings.length-1;i>=0;i--){
+    const a=auraRings[i];
+    a.r+=(a.maxR-a.r)*0.08; a.alpha*=0.93;
+    if(a.alpha<0.01){auraRings.splice(i,1);continue;}
+    fxCtx.beginPath(); fxCtx.arc(a.x,a.y,a.r,0,Math.PI*2);
+    fxCtx.strokeStyle=a.color+Math.floor(a.alpha*255).toString(16).padStart(2,'0');
+    fxCtx.lineWidth=2; fxCtx.stroke();
+  }
+}
+
+/* ═══════════════════════════════════════════
+   AUDIO VISUALISER  (Elder Magic style — hue-shifted by tech)
+═══════════════════════════════════════════ */
+const TECH_HUE={neutral:0,shikai:45,bankai:200,quincy:220,hollow:25,getsuga:50,fusing:300,mugetsu:0,charging:45};
+function drawAudioVis(techColor){
+  if(!audioReady) return;
+  const freq=getFreqData(), W=audioVisC.width, H=audioVisC.height;
+  audioVisX.clearRect(0,0,W,H);
+  const bins=Math.floor(freq.length/2), barW=W/bins;
+  const hue=TECH_HUE[currentTech]||0;
+  for(let i=0;i<bins;i++){
+    const v=freq[i]/255, h=v*H, alpha=0.3+v*0.7;
+    audioVisX.fillStyle=`hsla(${hue+i*0.6},85%,65%,${alpha})`;
+    audioVisX.fillRect(i*barW,H-h,Math.max(1,barW-1),h);
+  }
+}
+
+/* ═══════════════════════════════════════════
+   REIATSU METER (charges while technique active)
+═══════════════════════════════════════════ */
+let reiatsuLevel=0;
+function updateReiatsuMeter(delta){
+  if(currentTech!=='neutral'&&currentTech!=='charging') reiatsuLevel=Math.min(1,reiatsuLevel+delta*0.4);
+  else reiatsuLevel=Math.max(0,reiatsuLevel-delta*0.2);
+  reiatsuFill.style.width=(reiatsuLevel*100).toFixed(1)+'%';
+}
+
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+let currentTech  ='neutral';
+let shakeIntensity=0;
+let fusionActive =false,fusionPhase=0,fusionTimer=0;
+let fusionAngle  =0,fusionSpeed=CFG.FUSION.orbitSpeed,fusionRadius=CFG.FUSION.orbitStartRadius;
+let fusionCenter =new THREE.Vector3();
+let getsugaActive=false,getsugaTimer=0,getsugaSys=null;
+let mugetsuPhase =0,mugetsuTimer=0;
+// Getsuga charge via pinch
+let pinchHoldL   =0,pinchHoldR=0,getsugaCooldown=0;
+let peaceHoldL   =0,peaceHoldR=0;
+let chargeL=0,chargeR=0;
+let handCount    =0;
+let fps=0,fpsTimer=performance.now(),fpsFrames=0;
+let frameCount   =0;
+let lastDt       =0.016;
+
+/* ═══════════════════════════════════════════
+   ══════ GESTURE DETECTION (REWRITTEN) ══════
+   All gestures use normalised landmark y coords.
+   y grows DOWNWARD in MediaPipe normalised space.
+   "finger extended" = tip.y < pip.y  (tip is HIGHER on screen)
+═══════════════════════════════════════════ */
+
+/** Count how many of the 4 non-thumb fingers are extended */
+function countExtended(lm){
+  // tip indices: index=8, middle=12, ring=16, pinky=20
+  // pip indices: index=6, middle=10, ring=14, pinky=18
+  let c=0;
+  if(lm[8].y  < lm[6].y  - 0.02) c++; // index
+  if(lm[12].y < lm[10].y - 0.02) c++; // middle
+  if(lm[16].y < lm[14].y - 0.02) c++; // ring
+  if(lm[20].y < lm[18].y - 0.02) c++; // pinky
+  return c;
+}
+
+function isThumbExtended(lm){
+  // Thumb: tip=4, ip=3. Use x-distance in addition to y to handle sideways thumbs
+  return Math.abs(lm[4].x-lm[2].x)>0.04 || lm[4].y<lm[3].y-0.02;
+}
+
+/** Open palm: 4 non-thumb fingers extended */
+function isOpen(lm){ return countExtended(lm)>=CFG.DETECT.openThresh; }
+
+/** Fist: all non-thumb fingers folded, thumb tucked */
+function isFist(lm){ return countExtended(lm)<=CFG.DETECT.fistThresh && !isThumbExtended(lm); }
+
+/**
+ * Peace sign: index + middle extended, ring + pinky folded.
+ * This replaces the old 3-point gesture for Mugetsu charging.
+ */
+function isPeace(lm){
+  const indexUp  = lm[8].y  < lm[6].y  - 0.025;
+  const middleUp = lm[12].y < lm[10].y - 0.025;
+  const ringDown = lm[16].y > lm[14].y - 0.01;
+  const pinkyDown= lm[20].y > lm[18].y - 0.01;
+  return indexUp && middleUp && ringDown && pinkyDown;
+}
+
+/**
+ * PINCH: Thumb tip close to index tip.
+ * Used to CHARGE and AIM Getsuga — hold pinch to charge, release to fire.
+ * Returns the pinch distance (normalised). Below threshold = pinching.
+ */
+function getPinchDist(lm){
+  return Math.hypot(lm[4].x-lm[8].x, lm[4].y-lm[8].y);
+}
+function isPinching(lm){ return getPinchDist(lm)<CFG.DETECT.pinchDist; }
+
+/** Direction from wrist to index-tip, screen-space, mirrored */
+function pinchAimDirection(lm){
+  const wx=(1-lm[0].x)*window.innerWidth, wy=lm[0].y*window.innerHeight;
+  const tx=(1-lm[8].x)*window.innerWidth, ty=lm[8].y*window.innerHeight;
+  const dx=tx-wx, dy=ty-wy, len=Math.hypot(dx,dy)||1;
+  return{x:dx/len,y:dy/len,originX:tx,originY:ty};
+}
+
+/** Pinch mid-point for world position */
+function pinchMidpoint(lm){
+  return{x:(1-(lm[4].x+lm[8].x)*0.5)*window.innerWidth, y:((lm[4].y+lm[8].y)*0.5)*window.innerHeight};
+}
+
+const lmPx=lm=>({x:(1-lm[9].x)*window.innerWidth,y:lm[9].y*window.innerHeight});
+
+/* ═══════════════════════════════════════════
+   SKELETON DRAW
+═══════════════════════════════════════════ */
+const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function drawSkeleton(res){
+  const W=dbgCanvas.width,H=dbgCanvas.height;
+  for(let h=0;h<res.multiHandLandmarks.length;h++){
+    const lm=res.multiHandLandmarks[h],label=res.multiHandedness[h].label;
+    const pinching=isPinching(lm), peace=isPeace(lm), open=isOpen(lm), fist=isFist(lm);
+    let skCol=label==='Left'?'#4488ff':'#e8e0d0';
+    if(pinching) skCol='#ffcc44';
+    else if(peace) skCol='#888888';
+    else if(fist)  skCol='#ff6a00';
+    dbgCtx.strokeStyle=skCol+'77'; dbgCtx.lineWidth=pinching?2.8:1.8;
+    for(const[a,b]of CONN){
+      dbgCtx.beginPath();
+      dbgCtx.moveTo((1-lm[a].x)*W,lm[a].y*H);
+      dbgCtx.lineTo((1-lm[b].x)*W,lm[b].y*H);
+      dbgCtx.stroke();
+    }
+    for(let i=0;i<lm.length;i++){
+      dbgCtx.beginPath();
+      const rad=i===8||i===4?(pinching?8:4):(i===0?5:3);
+      dbgCtx.arc((1-lm[i].x)*W,lm[i].y*H,rad,0,Math.PI*2);
+      dbgCtx.fillStyle=(i===4||i===8)?'#ffcc44':(i===12?'#ff6a00':skCol);
+      dbgCtx.fill();
+    }
+    // Pinch line
+    if(pinching){
+      dbgCtx.beginPath();
+      dbgCtx.moveTo((1-lm[4].x)*W,lm[4].y*H);
+      dbgCtx.lineTo((1-lm[8].x)*W,lm[8].y*H);
+      dbgCtx.strokeStyle='#ffcc44cc'; dbgCtx.lineWidth=3; dbgCtx.stroke();
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════
+   MEDIAPIPE
+═══════════════════════════════════════════ */
+const mpHands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+mpHands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:CFG.DETECT.minDetect,minTrackingConfidence:CFG.DETECT.minTrack});
+mpHands.onResults(onResults);
+
+function onResults(res){
+  dbgCtx.clearRect(0,0,dbgCanvas.width,dbgCanvas.height);
+  handCount=res.multiHandLandmarks?.length||0;
+  hudHands.textContent='HANDS: '+handCount;
+  if(getsugaCooldown>0) getsugaCooldown--;
+
+  if(!handCount){
+    fadeBoth();
+    if(!fusionActive&&!getsugaActive&&mugetsuPhase===0) setTechState('neutral');
+    chargeL=chargeR=pinchHoldL=pinchHoldR=peaceHoldL=peaceHoldR=0;
+    updateChargeBar(0);
+    hudGesture.textContent='GEST: --';
+    return;
+  }
+
+  initAudio();
+  drawSkeleton(res);
+
+  // Sort: MediaPipe "Left" = user's right hand in mirror; "Right" = user's left
+  let leftLM=null,rightLM=null;
+  for(let i=0;i<res.multiHandLandmarks.length;i++){
+    if(res.multiHandedness[i].label==='Left') rightLM=res.multiHandLandmarks[i];
+    else leftLM=res.multiHandLandmarks[i];
+  }
+
+  if(fusionActive||getsugaActive||mugetsuPhase>0){
+    hudGesture.textContent='GEST: LOCKED';
+    return;
+  }
+
+  /* ── MUGETSU: both hands peace sign, hold to charge ── */
+  const lPeace=leftLM&&isPeace(leftLM);
+  const rPeace=rightLM&&isPeace(rightLM);
+  if(lPeace&&rPeace){
+    peaceHoldL=Math.min(peaceHoldL+1,CFG.DETECT.peaceHold+5);
+    peaceHoldR=Math.min(peaceHoldR+1,CFG.DETECT.peaceHold+5);
+    const progress=Math.min(peaceHoldL,peaceHoldR)/CFG.DETECT.peaceHold;
+    updateChargeBar(progress);
+    setTechState('charging');
+    hudGesture.textContent=`GEST: MUGETSU-CHARGE (${Math.floor(progress*100)}%)`;
+    if(progress>=1){ triggerMugetsu(); peaceHoldL=peaceHoldR=0; }
+    return;
+  } else { peaceHoldL=peaceHoldR=0; }
+
+  /* ── HOLLOW: both fists ── */
+  const lFist=leftLM&&isFist(leftLM);
+  const rFist=rightLM&&isFist(rightLM);
+  if(lFist&&rFist){
+    activateHollow(leftLM,rightLM);
+    hudGesture.textContent='GEST: HOLLOW';
+    pinchHoldL=pinchHoldR=0;
+    return;
+  }
+
+  /* ── GETSUGA: PINCH to charge & aim, release to fire ── */
+  const lPinch=leftLM&&isPinching(leftLM);
+  const rPinch=rightLM&&isPinching(rightLM);
+
+  if((lPinch||rPinch)&&getsugaCooldown<=0){
+    const firingLM=rPinch?rightLM:leftLM;
+    if(lPinch) pinchHoldL++; else pinchHoldL=0;
+    if(rPinch) pinchHoldR++; else pinchHoldR=0;
+    const hold=Math.max(pinchHoldL,pinchHoldR);
+    const progress=Math.min(hold/CFG.DETECT.pinchHold,1);
+    updateChargeBar(progress);
+    setTechState('charging');
+    hudGesture.textContent=`GEST: GETSUGA-AIM (${Math.floor(progress*100)}%)`;
+    // Charge sound at 50%
+    if(hold===Math.floor(CFG.DETECT.pinchHold*0.5)) playSound('getsugaCharge',0.6);
+    return;
+  }
+
+  // Was pinching last frame, now released → fire if charged
+  const wasChargingGetsuga=(pinchHoldL>=CFG.DETECT.pinchHold||pinchHoldR>=CFG.DETECT.pinchHold);
+  if(wasChargingGetsuga&&!lPinch&&!rPinch&&getsugaCooldown<=0){
+    // Use stored last pinch hand
+    const storedLM=pinchHoldR>=pinchHoldL?rightLM:leftLM;
+    if(storedLM&&(sysL.visible||sysR.visible)){
+      triggerGetsuga(storedLM);
+    }
+    pinchHoldL=pinchHoldR=0;
+    updateChargeBar(0);
+    return;
+  } else if(!lPinch&&!rPinch){ pinchHoldL=pinchHoldR=0; }
+
+  /* ── QUINCY: both open palms ── */
+  const lOpen=leftLM&&isOpen(leftLM);
+  const rOpen=rightLM&&isOpen(rightLM);
+  if(lOpen&&rOpen){
+    activateQuincy(leftLM,rightLM);
+    hudGesture.textContent='GEST: QUINCY';
+    return;
+  }
+
+  /* ── Shikai / Bankai ── */
+  const lPx=leftLM?lmPx(leftLM):null;
+  const rPx=rightLM?lmPx(rightLM):null;
+  if(leftLM&&lOpen)  activateShikai(lPx);
+  else               fadeOut(sysL);
+  if(rightLM&&rOpen) activateBankai(rPx);
+  else               fadeOut(sysR);
+
+  // Fusion if both visible and hands close
+  if(sysL.visible&&sysR.visible&&lPx&&rPx){
+    if(Math.hypot(lPx.x-rPx.x,lPx.y-rPx.y)<CFG.DETECT.fusionPixDist){
+      triggerFusion(lPx,rPx); hudGesture.textContent='GEST: FUSION'; return;
+    }
+    setTechState('shikai'); hudGesture.textContent='GEST: SHIKAI+BANKAI';
+  } else if(sysL.visible){ setTechState('shikai'); hudGesture.textContent='GEST: SHIKAI'; }
+  else if(sysR.visible)  { setTechState('bankai'); hudGesture.textContent='GEST: BANKAI'; }
+  else if(!fusionActive) { setTechState('neutral'); hudGesture.textContent='GEST: IDLE'; }
+  updateChargeBar(0);
+}
+
+/* ═══════════════════════════════════════════
+   TECHNIQUE ACTIVATORS
+═══════════════════════════════════════════ */
+function activateShikai(px){
+  if(sysL.shape!=='shikai'){setShape(sysL,genShikai);sysL.shape='shikai';}
+  sysL.targetWorldPos.copy(s2w(px.x,px.y));
+  sysL.visible=true;sysL.pts.visible=true;
+  sysL.opacity=Math.min(1,sysL.opacity+CFG.ANIM.fadeIn);
+  if(currentTech!=='shikai'&&currentTech!=='bankai'){
+    setTechState('shikai');
+    showBanner('始解','SHIKAI RELEASE');
+    showZanpakuto('斬月');
+    playSound('shikai',0.9);
+    spawnInk(px.x,px.y,1.5,'#e8e0d0');
+    spawnAura(s2w(px.x,px.y).x,s2w(px.x,px.y).y,'#e8e0d0');
+    logSpell('✦ 始解 — Zanpakuto awakened','#e8e0d0');
+    addCombo();
+  }
+}
+function activateBankai(px){
+  if(sysR.shape!=='bankai'){setShape(sysR,genBankai);sysR.shape='bankai';}
+  sysR.targetWorldPos.copy(s2w(px.x,px.y));
+  sysR.visible=true;sysR.pts.visible=true;
+  sysR.opacity=Math.min(1,sysR.opacity+CFG.ANIM.fadeIn);
+  if(currentTech!=='bankai'){
+    setTechState('bankai');
+    showBanner('卍解','FINAL RELEASE');
+    showZanpakuto('天鎖斬月');
+    playSound('bankai',0.9);
+    spawnInk(px.x,px.y,2,'#888888');
+    spawnAura(s2w(px.x,px.y).x,s2w(px.x,px.y).y,'#cccccc');
+    logSpell('✦ 卍解 — Tensa Zangetsu','#cccccc');
+    addCombo(2);
+  }
+}
+function activateQuincy(lLM,rLM){
+  const cx=(lmPx(lLM).x+lmPx(rLM).x)/2,cy=(lmPx(lLM).y+lmPx(rLM).y)/2;
+  if(sysL.shape!=='quincy'){setShape(sysL,genQuincy);sysL.shape='quincy';}
+  if(sysR.shape!=='quincy'){setShape(sysR,genQuincy);sysR.shape='quincy';}
+  const wp=s2w(cx,cy);
+  sysL.targetWorldPos.copy(wp);sysR.targetWorldPos.copy(wp);
+  sysL.visible=sysR.visible=true;sysL.pts.visible=sysR.pts.visible=true;
+  sysL.opacity=Math.min(1,sysL.opacity+CFG.ANIM.fadeIn);
+  sysR.opacity=Math.min(1,sysR.opacity+CFG.ANIM.fadeIn);
+  if(currentTech!=='quincy'){
+    setTechState('quincy');
+    showBanner('滅却師','QUINCY LETZT STIL');
+    showZanpakuto('光翼');
+    playSound('quincy',0.8);
+    spawnInk(cx,cy,2,'#4488ff');
+    spawnAura(wp.x,wp.y,'#4488ff');
+    logSpell('✦ 滅却師 — Letzt Stil','#4488ff');
+    addCombo(3);
+  }
+}
+function activateHollow(lLM,rLM){
+  const cx=(lmPx(lLM).x+lmPx(rLM).x)/2,cy=(lmPx(lLM).y+lmPx(rLM).y)/2;
+  if(sysL.shape!=='hollow'){setShape(sysL,genHollow);sysL.shape='hollow';}
+  if(sysR.shape!=='hollow'){setShape(sysR,genHollow);sysR.shape='hollow';}
+  const wp=s2w(cx,cy);
+  sysL.targetWorldPos.copy(new THREE.Vector3(wp.x-10,wp.y,0));
+  sysR.targetWorldPos.copy(new THREE.Vector3(wp.x+10,wp.y,0));
+  sysL.visible=sysR.visible=true;sysL.pts.visible=sysR.pts.visible=true;
+  sysL.opacity=Math.min(1,sysL.opacity+CFG.ANIM.fadeIn);
+  sysR.opacity=Math.min(1,sysR.opacity+CFG.ANIM.fadeIn);
+  if(currentTech!=='hollow'){
+    setTechState('hollow');
+    showBanner('虚化','HOLLOW MASK RESONANCE');
+    showZanpakuto('滅月');
+    playSound('hollow',0.9);
+    spawnInk(cx,cy,3,'#ff6a00');
+    spawnAura(wp.x,wp.y,'#ff6a00');
+    logSpell('✦ 虚化 — Hollow mask broken','#ff6a00');
+    addCombo(3);
+  }
+}
+
+/**
+ * GETSUGA TENSHOU — fired on pinch release after charging.
+ * Aim direction = wrist → index tip at moment of firing.
+ */
+function triggerGetsuga(lm){
+  const dir=pinchAimDirection(lm);
+  getsugaActive=true;getsugaTimer=0;
+  getsugaSys=sysL;
+  if(getsugaSys.shape!=='getsuga'){setShape(getsugaSys,genGetsuga);getsugaSys.shape='getsuga';}
+  getsugaSys.visible=true;getsugaSys.pts.visible=true;getsugaSys.opacity=1;
+  const wp=s2w(dir.originX,dir.originY);
+  getsugaSys.worldPos.copy(wp);getsugaSys.targetWorldPos.copy(wp);getsugaSys.pts.position.copy(wp);
+  getsugaSys.velocity.set(dir.x,-dir.y,1).normalize();
+  const angle=Math.atan2(-dir.y,dir.x);
+  getsugaSys.pts.rotation.z=angle;
+  setTechState('getsuga');
+  showBanner('月牙天衝','GETSUGA TENSHOU');
+  playSound('getsuga',1.0);
+  spawnInk(dir.originX,dir.originY,2.5,'#e8e0d0');
+  spawnAura(wp.x,wp.y,'#e8e0d0');
+  bloomPass.strength=CFG.GETSUGA.bloom;shakeIntensity=CFG.GETSUGA.shake;
+  getsugaCooldown=CFG.DETECT.getsugaCooldown;
+  logSpell('✦ 月牙天衝 — Getsuga Tenshou!','#d4c8aa');
+  addCombo(4);
+}
+
+function triggerFusion(lPx,rPx){
+  if(fusionActive) return;
+  fusionActive=true;fusionPhase=1;fusionTimer=0;
+  fusionAngle=0;fusionSpeed=CFG.FUSION.orbitSpeed;fusionRadius=CFG.FUSION.orbitStartRadius;
+  fusionCenter.copy(s2w((lPx.x+rPx.x)/2,(lPx.y+rPx.y)/2));
+  sysL.visible=sysR.visible=true;sysL.pts.visible=sysR.pts.visible=true;
+  sysL.opacity=sysR.opacity=1;
+  if(sysL.shape!=='shikai'){setShape(sysL,genShikai);sysL.shape='shikai';}
+  if(sysR.shape!=='bankai'){setShape(sysR,genBankai);sysR.shape='bankai';}
+  bloomPass.strength=CFG.FUSION.orbitBloom;shakeIntensity=CFG.FUSION.orbitShake;
+  setTechState('fusing');
+  showBanner('解放','REIATSU MERGING...');
+  playSound('fusion',0.85);
+  logSpell('✦ 融合 — Reiatsu colliding','#ffffff');
+  addCombo(5);
+}
+
+function triggerMugetsu(){
+  mugetsuPhase=1;mugetsuTimer=0;
+  setShape(sysM,genMugetsuWarp);sysM.shape='warp';
+  sysM.pos.set(sysM.tPos);sysM.col.set(sysM.tCol);sysM.siz.set(sysM.tSiz);
+  sysM.geo.attributes.position.needsUpdate=true;
+  sysM.geo.attributes.color.needsUpdate=true;
+  sysM.geo.attributes.size.needsUpdate=true;
+  sysM.visible=true;sysM.pts.visible=true;sysM.opacity=1;
+  sysM.worldPos.set(0,0,0);sysM.targetWorldPos.set(0,0,0);
+  bloomPass.strength=CFG.MUGETSU.bloom;shakeIntensity=CFG.MUGETSU.shake;
+  setTechState('mugetsu');
+  showBanner('無月','FINAL GETSUGA TENSHOU',3500);
+  showZanpakuto('無月');
+  playSound('mugetsu',1.0);
+  spawnInk(window.innerWidth/2,window.innerHeight/2,5,'#888888');
+  spawnAura(0,0,'#ffffff');
+  logSpell('✦ 無月 — Final Getsuga Tenshou','#aaaaaa');
+  addCombo(10);
+}
+
+/* ═══════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════ */
+function setTechState(t){
+  if(currentTech===t) return;
+  currentTech=t; setTech(t);
+  Bus.emit('technique_change',{technique:t});
+}
+function fadeOut(sys){
+  sys.opacity-=CFG.ANIM.fadeOut;
+  if(sys.opacity<=0){sys.visible=false;sys.opacity=0;sys.pts.visible=false;sys.shape='';}
+}
+function fadeBoth(){ fadeOut(sysL);fadeOut(sysR); }
+
+function updateChargeBar(progress){
+  chargeWrap.style.opacity=progress>0?'1':'0';
+  chargeFill.style.width=(Math.min(1,progress)*100).toFixed(1)+'%';
+  const hue=Math.round(Math.min(1,progress)*30);
+  chargeFill.style.background=`hsl(${hue},100%,80%)`;
+  chargeFill.style.boxShadow=`0 0 6px hsl(${hue},100%,80%)`;
+}
+
+function updateSys(sys){
+  sys.pts.visible=sys.visible||sys.opacity>0;
+  if(!sys.pts.visible) return;
+  sys.worldPos.lerp(sys.targetWorldPos,CFG.ANIM.lerpPos);
+  sys.pts.position.copy(sys.worldPos);
+  const fm=Math.max(0,sys.opacity);
+  for(let i=0;i<N*3;i++){
+    sys.pos[i]+=(sys.tPos[i]-sys.pos[i])*CFG.ANIM.lerpMorph;
+    sys.col[i]+=(sys.tCol[i]*fm-sys.col[i])*CFG.ANIM.lerpMorph;
+  }
+  for(let i=0;i<N;i++) sys.siz[i]+=(sys.tSiz[i]*fm-sys.siz[i])*CFG.ANIM.lerpMorph;
+  sys.geo.attributes.position.needsUpdate=true;
+  sys.geo.attributes.color.needsUpdate=true;
+  sys.geo.attributes.size.needsUpdate=true;
+}
+
+/* ═══════════════════════════════════════════
+   ANIMATE LOOP
+═══════════════════════════════════════════ */
+let lastFrameTime=performance.now();
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  const dt=Math.min((now-lastFrameTime)/1000,0.05);
+  lastFrameTime=now;
+  frameCount++;
+  chromaPass.uniforms.uTime.value=now*0.001;
+
+  // FPS
+  fpsFrames++;
+  if(now-fpsTimer>800){
+    fps=Math.round(fpsFrames*1000/(now-fpsTimer));
+    hudFPS.textContent='FPS: '+fps; fpsFrames=0; fpsTimer=now;
+  }
+
+  // Combo decay
+  tickCombo();
+
+  // Reiatsu meter
+  updateReiatsuMeter(dt);
+
+  /* ── FUSION ── */
+  if(fusionActive){
+    if(fusionPhase===1||fusionPhase===2){
+      fusionAngle+=fusionSpeed; fusionSpeed*=CFG.FUSION.spiralSpeedUp; fusionRadius*=CFG.FUSION.spiralShrinkRate;
+      if(fusionPhase===1&&fusionRadius<CFG.FUSION.orbitStartRadius*0.6){fusionPhase=2;bloomPass.strength=CFG.FUSION.orbitBloom+2;shakeIntensity=CFG.FUSION.orbitShake+0.5;}
+      const rx=fusionCenter.x+Math.cos(fusionAngle)*fusionRadius,ry=fusionCenter.y+Math.sin(fusionAngle)*fusionRadius;
+      const bx=fusionCenter.x+Math.cos(fusionAngle+Math.PI)*fusionRadius,by=fusionCenter.y+Math.sin(fusionAngle+Math.PI)*fusionRadius;
+      sysL.worldPos.set(rx,ry,0);sysL.targetWorldPos.set(rx,ry,0);sysL.pts.position.set(rx,ry,0);
+      sysR.worldPos.set(bx,by,0);sysR.targetWorldPos.set(bx,by,0);sysR.pts.position.set(bx,by,0);
+      sysL.pts.rotation.z+=0.12;sysR.pts.rotation.z-=0.12;
+      if(frameCount%8===0){spawnAura(rx,ry,'#e8e0d0');spawnAura(bx,by,'#888888');}
+      if(fusionRadius<CFG.FUSION.collisionRadius){
+        fusionPhase=3;fusionTimer=0;
+        bloomPass.strength=CFG.FUSION.explosionBloom;shakeIntensity=CFG.FUSION.explosionShake;
+        setShape(sysL,genHollow);sysL.shape='hollow_fused';setShape(sysR,genHollow);sysR.shape='hollow_fused';
+        for(let i=0;i<N*3;i++){const j=(Math.random()-0.5)*CFG.FUSION.explosionScatter;sysL.pos[i]+=j;sysL.tPos[i]+=j;}
+        for(let i=0;i<N*3;i++){const j=(Math.random()-0.5)*CFG.FUSION.explosionScatter;sysR.pos[i]+=j;sysR.tPos[i]+=j;}
+        sysL.geo.attributes.position.needsUpdate=true;sysR.geo.attributes.position.needsUpdate=true;
+        sysL.worldPos.copy(fusionCenter);sysR.worldPos.copy(fusionCenter);
+        sysL.targetWorldPos.copy(fusionCenter);sysR.targetWorldPos.copy(fusionCenter);
+        sysL.pts.position.copy(fusionCenter);sysR.pts.position.copy(fusionCenter);
+        showBanner('解放完了','RELEASE COMPLETE');showZanpakuto('滅月');
+        playSound('fusion',1.0);
+        spawnInk(window.innerWidth/2,window.innerHeight/2,3,'#ff6a00');
+        for(let k=0;k<6;k++) spawnAura((Math.random()-0.5)*30,(Math.random()-0.5)*20,'#ff6a00');
+      }
+    } else if(fusionPhase===3){
+      fusionTimer++;
+      const p=fusionTimer/CFG.FUSION.explosionDuration;
+      bloomPass.strength=CFG.FUSION.explosionBloom+(CFG.HOLLOW.bloom-CFG.FUSION.explosionBloom)*p;
+      shakeIntensity=CFG.FUSION.explosionShake*(1-p);
+      sysL.targetWorldPos.copy(fusionCenter);sysR.targetWorldPos.copy(fusionCenter);
+      if(fusionTimer>=CFG.FUSION.explosionDuration){
+        fusionActive=false;fusionPhase=0;
+        setTechState('hollow');bloomPass.strength=CFG.HOLLOW.bloom;shakeIntensity=CFG.HOLLOW.shake;
+      }
+    }
+  }
+
+  /* ── GETSUGA TRAVEL ── */
+  if(getsugaActive&&getsugaSys){
+    getsugaTimer++;
+    const p=getsugaTimer/CFG.GETSUGA.duration, speed=CFG.GETSUGA.speed*(1+p*4);
+    const v=getsugaSys.velocity;
+    getsugaSys.worldPos.x+=v.x*speed*0.6;
+    getsugaSys.worldPos.y+=v.y*speed*0.6;
+    getsugaSys.worldPos.z+=speed*0.8;
+    getsugaSys.targetWorldPos.copy(getsugaSys.worldPos);
+    getsugaSys.pts.position.copy(getsugaSys.worldPos);
+    const sc=1+p*5; getsugaSys.pts.scale.set(sc,sc,sc);
+    bloomPass.strength=CFG.GETSUGA.bloom*(1-p*0.4);shakeIntensity=CFG.GETSUGA.shake*(1-p);
+    if(frameCount%3===0) spawnAura(getsugaSys.worldPos.x,getsugaSys.worldPos.y,'#e8e0d0');
+    if(getsugaTimer>CFG.GETSUGA.duration||getsugaSys.worldPos.z>CFG.CAM.z+30){
+      const gs=getsugaSys;
+      getsugaActive=false;gs.visible=false;gs.opacity=0;gs.worldPos.set(0,0,0);
+      gs.targetWorldPos.set(0,0,0);gs.shape='';gs.pts.scale.set(1,1,1);gs.pts.visible=false;gs.pts.rotation.z=0;gs.velocity.set(0,0,0);
+      getsugaSys=null;
+      setTechState('neutral');bloomPass.strength=CFG.BLOOM.defaultStrength;shakeIntensity=0;
+    }
+  }
+
+  /* ── MUGETSU ── */
+  if(mugetsuPhase===1){
+    mugetsuTimer++;
+    const R=CFG.MUGETSU.warpRange,tPos=sysM.tPos;
+    for(let i=0;i<N;i++){let x=tPos[i*3]+CFG.MUGETSU.warpSpeed;if(x>R)x-=R*2;if(x<-R)x+=R*2;tPos[i*3]=x;}
+    if(mugetsuTimer>CFG.MUGETSU.warpDuration){mugetsuPhase=2;mugetsuTimer=0;setShape(sysM,genMugetsu);sysM.shape='mugetsu';}
+  } else if(mugetsuPhase===2){
+    mugetsuTimer++;sysM.pts.rotation.z-=0.008;sysM.pts.rotation.x+=0.002;
+    if(frameCount%6===0) spawnAura((Math.random()-0.5)*20,(Math.random()-0.5)*15,'#888888');
+    if(mugetsuTimer>CFG.MUGETSU.darkDuration){mugetsuPhase=3;mugetsuTimer=0;}
+  } else if(mugetsuPhase===3){
+    sysM.opacity-=0.018;
+    if(sysM.opacity<=0){mugetsuPhase=0;sysM.visible=false;sysM.pts.visible=false;sysM.opacity=0;sysM.shape='';setTechState('neutral');bloomPass.strength=CFG.BLOOM.defaultStrength;shakeIntensity=0;}
+  }
+
+  /* ── ROTATIONS ── */
+  if(currentTech!=='getsuga'){
+    const rots={shikai:[CFG.SHIKAI.rotationSpeed,-CFG.SHIKAI.rotationSpeed],bankai:[CFG.BANKAI.rotationSpeed*0.8,CFG.BANKAI.rotationSpeed],quincy:[CFG.QUINCY.rotationSpeed,-CFG.QUINCY.rotationSpeed],hollow:[CFG.HOLLOW.rotationSpeed*0.9,CFG.HOLLOW.rotationSpeed],fusing:[0.18,-0.18],mugetsu:[0.005,-0.005],neutral:[CFG.ANIM.neutralRot,-CFG.ANIM.neutralRot],charging:[0.03,-0.03]}[currentTech]||[CFG.ANIM.neutralRot,-CFG.ANIM.neutralRot];
+    sysL.pts.rotation.z+=rots[0];sysR.pts.rotation.z+=rots[1];
+  }
+  if(currentTech==='quincy'){sysL.pts.rotation.y+=0.01;sysR.pts.rotation.y-=0.01;}
+  if(currentTech==='bankai'){const p=1+Math.sin(frameCount*0.05)*0.06;sysR.pts.scale.set(p,p,p);}
+  else if(currentTech!=='getsuga') sysR.pts.scale.set(1,1,1);
+
+  if(frameCount%20===0&&(currentTech==='shikai'||currentTech==='bankai')){
+    if(sysL.visible) spawnAura(sysL.worldPos.x,sysL.worldPos.y,currentTech==='shikai'?'#e8e0d0':'#888888');
+    if(sysR.visible) spawnAura(sysR.worldPos.x,sysR.worldPos.y,'#cccccc');
+  }
+
+  updateSys(sysL);updateSys(sysR);updateSys(sysM);
+  updateInk();updateFX();
+  drawAudioVis(TECH_DATA[currentTech]?.color||'#8a8478');
+
+  /* ── SCREEN SHAKE ── */
+  if(shakeIntensity>0.01){
+    const s=shakeIntensity*CFG.ANIM.shakeMultiplier;
+    threeCanvas.style.transform=`translate(${(Math.random()-0.5)*s}px,${(Math.random()-0.5)*s}px)`;
+    vidEl.style.transform=`scaleX(-1) translate(${(Math.random()-0.5)*s*0.3}px,${(Math.random()-0.5)*s*0.3}px)`;
+  } else {
+    threeCanvas.style.transform='';vidEl.style.transform='scaleX(-1)';
+  }
+
+  composer.render();
+}
+animate();
+
+/* ═══════════════════════════════════════════
+   CAMERA INIT
+═══════════════════════════════════════════ */
+function startCam(){
+  if(typeof Camera!=='undefined'){
+    try{
+      new Camera(vidEl,{onFrame:async()=>{await mpHands.send({image:vidEl});},width:CFG.CAM.w,height:CFG.CAM.h}).start();
+      return;
+    } catch(e){ console.warn('Camera helper failed, falling back:',e); }
+  }
+  navigator.mediaDevices.getUserMedia({video:{width:{ideal:CFG.CAM.w},height:{ideal:CFG.CAM.h},facingMode:'user'}})
+  .then(stream=>{
+    vidEl.srcObject=stream;vidEl.play();
+    let running=false;
+    async function loop(){
+      if(vidEl.readyState>=2&&!running){running=true;try{await mpHands.send({image:vidEl});}catch(e){}running=false;}
+      requestAnimationFrame(loop);
+    }
+    vidEl.addEventListener('loadeddata',loop);
+  }).catch(err=>console.error('Camera error:',err));
+}
+
+/* ═══════════════════════════════════════════
+   START BUTTON
+═══════════════════════════════════════════ */
+document.getElementById('start-btn').addEventListener('click',()=>{
+  const screen=document.getElementById('start-screen');
+  screen.classList.add('hidden');
+  setTimeout(()=>screen.style.display='none',1500);
+  startCam();
+});
+
+/* ═══════════════════════════════════════════
+   RESIZE
+═══════════════════════════════════════════ */
+window.addEventListener('resize',()=>{
+  cam3.aspect=window.innerWidth/window.innerHeight;cam3.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  composer.setSize(window.innerWidth,window.innerHeight);
+  threeCanvas.width=window.innerWidth;threeCanvas.height=window.innerHeight;
+  resizeCanvases();
+});
+
+/* ═══════════════════════════════════════════
+   BUS LISTENERS
+═══════════════════════════════════════════ */
+Bus.on('technique_change',({technique})=>{
+  const cfg={shikai:{bloom:CFG.SHIKAI.bloom,shake:CFG.SHIKAI.shake},bankai:{bloom:CFG.BANKAI.bloom,shake:CFG.BANKAI.shake},quincy:{bloom:CFG.QUINCY.bloom,shake:CFG.QUINCY.shake},hollow:{bloom:CFG.HOLLOW.bloom,shake:CFG.HOLLOW.shake},mugetsu:{bloom:CFG.MUGETSU.bloom,shake:CFG.MUGETSU.shake},neutral:{bloom:CFG.BLOOM.defaultStrength,shake:0},charging:{bloom:2.0,shake:0.1}}[technique]||{bloom:CFG.BLOOM.defaultStrength,shake:0};
+  if(!fusionActive&&!getsugaActive&&mugetsuPhase===0){bloomPass.strength=cfg.bloom;shakeIntensity=cfg.shake;}
+});
+
+</script>
+</body>
+</html>
